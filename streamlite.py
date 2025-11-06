@@ -70,6 +70,7 @@ col1, col2 = st.columns(2)
 
 # Prepare input dataframe (columns named exactly like your CSV)
 # ---------------- Sidebar inputs (define these FIRST) ----------------
+# ---------------- Sidebar inputs (define these FIRST) ----------------
 with st.sidebar:
     st.header("Your Inputs")
     duration = st.selectbox("Detox Duration (hrs)", options=[24, 48], index=0)
@@ -82,19 +83,51 @@ with st.sidebar:
     baseline_focus = st.slider("Baseline Focus (0–10)", 0, 10, 5)
     sleep_hours = st.slider("Average Sleep Hours (per night)", 0, 12, 7)
 
-# ---------------- Prepare input dataframe (must use exact same column names as training) ----------------
-# features used in training: ["Detox Duration", "Stress Reduction", "Sleep Improvement", "Screen Time"]
-input_df = pd.DataFrame([{
+# ---------------- Build input dataframe using the SAME features the model expects ----------------
+# (Based on the error you saw, the model expects these column names/features)
+reg_features = [
+    "Detox Duration",
+    "Baseline Mood",
+    "Baseline Stress",
+    "Screen Time",
+    "Baseline Sleep",
+    "Baseline Focus",
+    "Sleep Hours"
+]
+
+# Make sure the input dict keys match EXACTLY these names (string spelling + spacing)
+input_dict = {
     "Detox Duration": int(duration),
     "Baseline Mood": int(baseline_mood),
     "Baseline Stress": int(baseline_stress),
-    "Stress Reduction": int(stress_reduction),
-    "Sleep Improvement": int(sleep_improve),
+    # We keep Screen Time as the same name used at fit-time
     "Screen Time": int(screen_time),
     "Baseline Sleep": int(baseline_sleep),
     "Baseline Focus": int(baseline_focus),
-    "Sleep Hours": int(sleep_hours)
-}])
+    "Sleep Hours": int(sleep_hours),
+}
+
+input_df = pd.DataFrame([input_dict])
+
+# ---------------- Regression prediction (use same order / names that scaler/model expect) ----------------
+X_reg = input_df[reg_features]   # this will guarantee correct column names & order
+X_reg_scaled = scaler_reg.transform(X_reg)
+pred_mood_change = float(lr.predict(X_reg_scaled)[0])
+st.metric(label="Predicted Mood Improvement (0–10)", value=f"{pred_mood_change:.2f}")
+
+# Optional: show predicted post mood
+st.write("Predicted Post Mood:", min(10, baseline_mood + pred_mood_change).__round__(2))
+
+# ---------------- Classification (if available) ----------------
+if clf is not None and scaler_clf is not None and le is not None:
+    # If classifier was trained on same reg_features, use same X_reg; otherwise adjust similarly
+    X_clf_scaled = scaler_clf.transform(X_reg)
+    pred_class = clf.predict(X_clf_scaled)[0]
+    pred_label = le.inverse_transform([pred_class])[0]
+    st.metric(label="Predicted Detox Difficulty", value=pred_label)
+else:
+    st.info("Classification model not available. Upload classification artifacts into models/ if needed.")
+
 
 
 # Regression input features used during training (match your training script)
