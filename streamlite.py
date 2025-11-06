@@ -69,17 +69,33 @@ st.subheader("Model Predictions")
 col1, col2 = st.columns(2)
 
 # Prepare input dataframe (columns named exactly like your CSV)
+# ---------------- Sidebar inputs (define these FIRST) ----------------
+with st.sidebar:
+    st.header("Your Inputs")
+    duration = st.selectbox("Detox Duration (hrs)", options=[24, 48], index=0)
+    baseline_mood = st.slider("Baseline Mood (0–10)", 0, 10, 5)
+    baseline_stress = st.slider("Baseline Stress (%)", 0, 100, 60)
+    stress_reduction = st.slider("Stress Reduction (%)", 0, 30, 10)
+    sleep_improve = st.slider("Sleep Improvement (0–5)", 0, 5, 1)
+    screen_time = st.slider("Screen Time (hrs/day)", 0, 24, 6)
+    baseline_sleep = st.slider("Baseline Sleep Quality (0–10)", 0, 10, 6)
+    baseline_focus = st.slider("Baseline Focus (0–10)", 0, 10, 5)
+    sleep_hours = st.slider("Average Sleep Hours (per night)", 0, 12, 7)
+
+# ---------------- Prepare input dataframe (must use exact same column names as training) ----------------
+# features used in training: ["Detox Duration", "Stress Reduction", "Sleep Improvement", "Screen Time"]
 input_df = pd.DataFrame([{
-    "Detox Duration": duration,
-    "Baseline Mood": baseline_mood,
-    "Baseline Stress": baseline_stress,
-    "Stress Reduction": stress_reduction,
-    "Sleep Improvement": sleep_improve,
-    "Screen Time": screen_time,
-    "Baseline Sleep": baseline_sleep,
-    "Baseline Focus": baseline_focus,
-    "Sleep Hours": sleep_hours
+    "Detox Duration": int(duration),
+    "Baseline Mood": int(baseline_mood),
+    "Baseline Stress": int(baseline_stress),
+    "Stress Reduction": int(stress_reduction),
+    "Sleep Improvement": int(sleep_improve),
+    "Screen Time": int(screen_time),
+    "Baseline Sleep": int(baseline_sleep),
+    "Baseline Focus": int(baseline_focus),
+    "Sleep Hours": int(sleep_hours)
 }])
+
 
 # Regression input features used during training (match your training script)
 reg_features = ["Detox Duration", "Stress Reduction", "Sleep Improvement", "Screen Time"]
