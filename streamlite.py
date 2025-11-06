@@ -73,29 +73,11 @@ col1, col2 = st.columns(2)
 # ---------------- Sidebar inputs (define these FIRST) ----------------
 # ---------------- Sidebar inputs (define these FIRST) ----------------
 # ---------------- Sidebar inputs ----------------
-with st.sidebar:
-    st.header("Your Inputs")
-    duration = st.selectbox("Detox Duration (hrs)", options=[24, 48], index=0)
-    baseline_mood = st.slider("Baseline Mood (0–10)", 0, 10, 5)
-    baseline_stress = st.slider("Baseline Stress (%)", 0, 100, 60)
-    baseline_sleep = st.slider("Baseline Sleep Quality (0–10)", 0, 10, 6)
-    baseline_focus = st.slider("Baseline Focus (0–10)", 0, 10, 5)
-    screen_time = st.slider("Screen Time (hrs/day)", 0, 24, 6)
-    sleep_hours = st.slider("Average Sleep Hours (per night)", 0, 12, 7)
+# ---------------- Robust prediction: ensure exact feature order ----------------
+import numpy as np
 
-# ---------------- Build input dataframe ----------------
-# Use the same columns your model expects
-reg_features = [
-    "Detox Duration",
-    "Baseline Mood",
-    "Baseline Stress",
-    "Baseline Sleep",
-    "Baseline Focus",
-    "Screen Time",
-    "Sleep Hours"
-]
-
-input_dict = {
+# Map slider variables to a simple dict (we had them defined already)
+slider_map = {
     "Detox Duration": int(duration),
     "Baseline Mood": int(baseline_mood),
     "Baseline Stress": int(baseline_stress),
@@ -105,52 +87,76 @@ input_dict = {
     "Sleep Hours": int(sleep_hours)
 }
 
-input_df = pd.DataFrame([input_dict])
+# Try to get the feature order from the scaler or model (preferred)
+expected_features = None
+if hasattr(scaler_reg, "feature_names_in_"):
+    expected_features = list(scaler_reg.feature_names_in_)
+elif hasattr(lr, "feature_names_in_"):
+    expected_features = list(lr.feature_names_in_)
 
-# Ensure order
-X_reg = input_df[reg_features]
+# If not found, fall back to a safe hardcoded order (edit if your training used something else)
+if expected_features is None:
+    expected_features = [
+        "Detox Duration",
+        "Baseline Mood",
+        "Baseline Stress",
+        "Baseline Sleep",
+        "Baseline Focus",
+        "Screen Time",
+        "Sleep Hours"
+    ]
 
-# ---------------- Regression Prediction ----------------
+# Show expected features in the app (helps debug if names mismatch)
+st.info(f"Model expects features (in order): {expected_features}")
+
+# Build input vector in the exact expected order, filling missing features with 0
+input_values = []
+missing = []
+for feat in expected_features:
+    if feat in slider_map:
+        input_values.append(slider_map[feat])
+    else:
+        # if feature isn't provided by sliders (but model expected it), default to 0
+        input_values.append(0)
+        missing.append(feat)
+
+if missing:
+    st.warning(f"The following expected features were not provided by sliders and set to 0: {missing}")
+
+# Create dataframe row with correct column names & order
+X_reg = pd.DataFrame([input_values], columns=expected_features)
+
+# Scale & predict safely with try/except
 try:
     X_reg_scaled = scaler_reg.transform(X_reg)
     pred_mood_change = float(lr.predict(X_reg_scaled)[0])
     st.metric(label="Predicted Mood Improvement (0–10)", value=f"{pred_mood_change:.2f}")
     st.write("Predicted Post Mood:", round(min(10, baseline_mood + pred_mood_change), 2))
 except Exception as e:
-    st.error(f"Prediction failed — check model & feature names. Error: {e}")
+    st.error("Prediction failed — feature names/order mismatch. See logs. Error: " + str(e))
 
-# ---------------- Classification (if available) ----------------
+# Classification if available (uses same expected_features; change if classifier used different features)
 if clf is not None and scaler_clf is not None and le is not None:
     try:
-        X_clf_scaled = scaler_clf.transform(X_reg)
+        # if classifier has its own feature_names_in_, use that
+        clf_expected = None
+        if hasattr(scaler_clf, "feature_names_in_"):
+            clf_expected = list(scaler_clf.feature_names_in_)
+        elif hasattr(clf, "feature_names_in_"):
+            clf_expected = list(clf.feature_names_in_)
+        else:
+            clf_expected = expected_features  # assume same
+
+        # build classifier input according to clf_expected
+        X_clf = pd.DataFrame([{f: slider_map.get(f, 0) for f in clf_expected}])
+        X_clf_scaled = scaler_clf.transform(X_clf)
         pred_class = clf.predict(X_clf_scaled)[0]
         pred_label = le.inverse_transform([pred_class])[0]
         st.metric(label="Predicted Detox Difficulty", value=pred_label)
     except Exception as e:
-        st.warning(f"Classification failed (check classifier features). Error: {e}")
+        st.warning("Classification failed (feature mismatch). Error: " + str(e))
 else:
-    st.info("Classification model not available. Upload classification artifacts into models/ if needed.")
-
-# ---------------- Regression prediction (use same order / names that scaler/model expect) ----------------
-X_reg = input_df[reg_features]   # this will guarantee correct column names & order
-X_reg_scaled = scaler_reg.transform(X_reg)
-pred_mood_change = float(lr.predict(X_reg_scaled)[0])
-st.metric(label="Predicted Mood Improvement (0–10)", value=f"{pred_mood_change:.2f}")
-
-# Optional: show predicted post mood
-st.write("Predicted Post Mood:", min(10, baseline_mood + pred_mood_change).__round__(2))
-
-# ---------------- Classification (if available) ----------------
-if clf is not None and scaler_clf is not None and le is not None:
-    # If classifier was trained on same reg_features, use same X_reg; otherwise adjust similarly
-    X_clf_scaled = scaler_clf.transform(X_reg)
-    pred_class = clf.predict(X_clf_scaled)[0]
-    pred_label = le.inverse_transform([pred_class])[0]
-    st.metric(label="Predicted Detox Difficulty", value=pred_label)
-else:
-    st.info("Classification model not available. Upload classification artifacts into models/ if needed.")
-
-
+    st.info("Classification model not available or artifacts missing.")
 
 # Regression input features used during training (match your training script)
 reg_features = ["Detox Duration", "Stress Reduction", "Sleep Improvement", "Screen Time"]
