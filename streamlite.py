@@ -72,82 +72,64 @@ col1, col2 = st.columns(2)
 # ---------------- Sidebar inputs (define these FIRST) ----------------
 # ---------------- Sidebar inputs (define these FIRST) ----------------
 # ---------------- Sidebar inputs (define these FIRST) ----------------
+# ---------------- Sidebar inputs ----------------
 with st.sidebar:
     st.header("Your Inputs")
     duration = st.selectbox("Detox Duration (hrs)", options=[24, 48], index=0)
     baseline_mood = st.slider("Baseline Mood (0–10)", 0, 10, 5)
     baseline_stress = st.slider("Baseline Stress (%)", 0, 100, 60)
-    stress_reduction = st.slider("Stress Reduction (%)", 0, 30, 10)
-    sleep_improve = st.slider("Sleep Improvement (0–5)", 0, 5, 1)
-    screen_time = st.slider("Screen Time (hrs/day)", 0, 24, 6)
     baseline_sleep = st.slider("Baseline Sleep Quality (0–10)", 0, 10, 6)
     baseline_focus = st.slider("Baseline Focus (0–10)", 0, 10, 5)
+    screen_time = st.slider("Screen Time (hrs/day)", 0, 24, 6)
     sleep_hours = st.slider("Average Sleep Hours (per night)", 0, 12, 7)
 
-# ---------------- Build input dataframe (create EXACT names model expects) ----------------
-# Put here the exact feature names expected by the scaler/model.
-# If you're not sure, this list is safe and covers common variants.
+# ---------------- Build input dataframe ----------------
+# Use the same columns your model expects
 reg_features = [
     "Detox Duration",
     "Baseline Mood",
     "Baseline Stress",
-    "Stress Reduction",
-    "Sleep Improvement",
-    "Screen Time",
     "Baseline Sleep",
     "Baseline Focus",
+    "Screen Time",
     "Sleep Hours"
 ]
 
-# Create input dict using slider variables (map slider var -> exact column name)
-input_dict = {}
+input_dict = {
+    "Detox Duration": int(duration),
+    "Baseline Mood": int(baseline_mood),
+    "Baseline Stress": int(baseline_stress),
+    "Baseline Sleep": int(baseline_sleep),
+    "Baseline Focus": int(baseline_focus),
+    "Screen Time": int(screen_time),
+    "Sleep Hours": int(sleep_hours)
+}
 
-# Map direct ones
-input_dict["Detox Duration"] = int(duration)
-input_dict["Baseline Mood"] = int(baseline_mood)
-input_dict["Baseline Stress"] = int(baseline_stress)
-input_dict["Screen Time"] = int(screen_time)
-input_dict["Baseline Sleep"] = int(baseline_sleep)
-input_dict["Baseline Focus"] = int(baseline_focus)
-input_dict["Sleep Hours"] = int(sleep_hours)
-
-# Map the ones that might have different variable names
-input_dict["Stress Reduction"] = int(stress_reduction)      # from stress_reduction slider
-input_dict["Sleep Improvement"] = int(sleep_improve)       # from sleep_improve slider
-
-# Build dataframe
 input_df = pd.DataFrame([input_dict])
 
-# --- Safety: ensure all reg_features exist in input_df; if missing, add as 0 ---
-for feat in reg_features:
-    if feat not in input_df.columns:
-        input_df[feat] = 0
-
-# Reorder to the reg_features order (important for scalers that were fit with feature order)
+# Ensure order
 X_reg = input_df[reg_features]
 
-# ---------------- Regression prediction (scale & predict) ----------------
+# ---------------- Regression Prediction ----------------
 try:
     X_reg_scaled = scaler_reg.transform(X_reg)
     pred_mood_change = float(lr.predict(X_reg_scaled)[0])
     st.metric(label="Predicted Mood Improvement (0–10)", value=f"{pred_mood_change:.2f}")
-    st.write("Predicted Post Mood:", round(min(10, baseline_mood + pred_mood_change),2))
+    st.write("Predicted Post Mood:", round(min(10, baseline_mood + pred_mood_change), 2))
 except Exception as e:
-    st.error("Prediction failed — check model & feature names. Error: " + str(e))
+    st.error(f"Prediction failed — check model & feature names. Error: {e}")
 
 # ---------------- Classification (if available) ----------------
 if clf is not None and scaler_clf is not None and le is not None:
     try:
-        # If classifier expects same features, use X_reg; otherwise modify accordingly
         X_clf_scaled = scaler_clf.transform(X_reg)
         pred_class = clf.predict(X_clf_scaled)[0]
         pred_label = le.inverse_transform([pred_class])[0]
         st.metric(label="Predicted Detox Difficulty", value=pred_label)
     except Exception as e:
-        st.warning("Classification failed (check classifier features). Error: " + str(e))
+        st.warning(f"Classification failed (check classifier features). Error: {e}")
 else:
     st.info("Classification model not available. Upload classification artifacts into models/ if needed.")
-
 
 # ---------------- Regression prediction (use same order / names that scaler/model expect) ----------------
 X_reg = input_df[reg_features]   # this will guarantee correct column names & order
