@@ -113,7 +113,7 @@ if expected_features is None:
     ]
 
 # Show expected feature order for debugging / clarity
-st.info(f"Model expects features (in order): {expected_features}")
+#st.info(f"Model expects features (in order): {expected_features}")
 
 # ---------------------------
 # Build input row in exact expected order; fill missing with 0
